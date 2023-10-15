@@ -131,3 +131,6 @@ dmypy.json
 .pyre/
 
 .DS_Store
+
+# Ignore the config.py so users need to copy it from the example
+config.py

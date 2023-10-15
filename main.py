@@ -14,6 +14,7 @@ from machine import WDT
 wdt = WDT(timeout=config.UNLOCK_DELAY * 1000 + 2000)
 wdt.feed()
 import uselect
+import neopixel
 
 ulogging.basicConfig(level=ulogging.INFO)
 logger = ulogging.getLogger("main")
@@ -26,7 +27,10 @@ STATE = {
 # setup outputs
 buzzer = PWM(Pin(config.BUZZER_PIN), freq=400, duty=0)
 lock_pin = Pin(config.LOCK_PIN, Pin.OUT, value=config.LOCK_REVERSED)
-led = Pin(config.LED_PIN, Pin.OUT)
+if config.USE_NEOPIXEL is True:
+    led = neopixel.NeoPixel(Pin(config.LED_PIN), 1)
+else:
+    led = Pin(config.LED_PIN, Pin.OUT)
 
 
 def file_or_dir_exists(filename):
@@ -75,6 +79,25 @@ def get_state():
         logger.error(str(e))
         return False
 
+def neopixel_state(state = None):
+    # Update the neopixel colour based on the 
+    # state of the platform
+    logger.info(f"Setting LED to {state}")
+    if state is not None:
+        if state == "Off":
+            led[0] = (0,0,0)
+        elif state == "Connected":
+            led[0] = (0,0,255)
+        elif state == "Disconnected":
+            led[0] = (255,0,255)
+        elif state == "Scanned":
+            led[0] = (0,255,255)
+        elif state == "Authorised":
+            led[0] = (0,255,0)
+        elif state == "Denied":
+            led[0] = (255,0,0)
+        led.write()
+            
 
 def lock_door():
     if config.LOCK_REVERSED:
@@ -154,7 +177,8 @@ def led_ok():
 
 
 # setup is starting
-buzz_alert()
+if not config.USE_NEOPIXEL:
+    buzz_alert()
 get_state()  # grab the state from the flash
 
 # setup RFID
@@ -196,6 +220,7 @@ led_toggle_last_update = time.ticks_ms()
 led_toggle_last_state = False
 
 if not wlan.isconnected():
+    neopixel_state("Disconnected")
     logger.info('connecting to network...')
     wlan.connect(config.WIFI_SSID, config.WIFI_PASS)
     while not wlan.isconnected():
@@ -211,14 +236,18 @@ if not wlan.isconnected():
             led_toggle_last_update = time.ticks_ms()
 
             if led_toggle_last_state:
-                led_off()
+                if config.USE_NEOPIXEL is True:
+                    neopixel_state("Off")
+                else:
+                    led_off()
                 led_toggle_last_state = False
 
             else:
-                led_on()
+                if config.USE_NEOPIXEL is True:
+                    neopixel_state("Disconnected")
+                else:
+                    led_on()
                 led_toggle_last_state = True
-
-    led_off()
 
     local_ip = wlan.ifconfig()[0]
     logger.info('Local IP: ' + local_ip)
@@ -248,13 +277,21 @@ def setup_websocket_connection():
         ip_packet = {"command": "ip_address", "ip_address": local_ip}
         websocket.send(json.dumps(ip_packet))
 
-        led_ok()
+        if config.USE_NEOPIXEL is True:
+            neopixel_state("Connected")
+        else:
+            led_ok()
+
 
     except Exception as e:
         logger.error("Couldn't connect to websocket!")
         logger.error(str(e))
 
-        led_alert()
+        if config.USE_NEOPIXEL is True:
+            neopixel_state("Disconnected")
+        else:
+            led_alert()
+
 
 
 def setup_http_server():
@@ -329,15 +366,24 @@ def swipe_success():
     unlock_door()
     buzz_ok()
 
-    led_on()
+    if config.USE_NEOPIXEL is True:
+        neopixel_state("Authorised")
+    else:
+        led_on()
     time.sleep(config.UNLOCK_DELAY)
-    led_off()
+    if config.USE_NEOPIXEL is True:
+        neopixel_state("Connected")
+    else:
+        led_off()
     lock_door()
     logger.warn("Locking!")
 
 
 def swipe_denied():
-    buzz_alert()
+    if config.USE_NEOPIXEL is True:
+        neopixel_state("Denied")
+    else:
+        buzz_alert()
 
 
 if config.ENABLE_BACKUP_HTTP_SERVER:
@@ -450,6 +496,8 @@ while True:
             buzzer.duty(512)
             time.sleep(0.1)
             buzzer.duty(0)
+            if config.USE_NEOPIXEL is True:
+                neopixel_state("Scanned")
 
             if str(card) in authorised_rfid_tags:
                 if STATE["locked_out"]:

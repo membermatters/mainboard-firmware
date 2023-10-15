@@ -36,4 +36,4 @@ The first step is to install Micropython onto your ESP32 board. A full tutorial 
    esptool.py --chip esp32 --port /dev/tty.usbserial-1110 --baud 115200 write_flash -z 0x1000 esp32-20220618-v1.19.1.bin
    ```
    Note: you can use a faster baudrate, but some boards have upload reliability problems at faster speeds.
-4. Update `config.py` with the correct config for your setup then flash the software to your board using the VS Code plugin "pymakr". Alternatively, use another tool like "ampy".
+4. Copy `config.py.example` to `config.py` and update it with the correct config for your setup then flash the software to your board using the VS Code plugin "pymakr". Alternatively, use another tool like "ampy".
